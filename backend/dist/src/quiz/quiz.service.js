@@ -33,10 +33,7 @@ let QuizService = class QuizService {
         this.prisma = prisma;
     }
     async generate(topicId) {
-        const topic = await this.prisma.topic.findUnique({
-            where: { id: topicId },
-            include: { vocabularies: { orderBy: { orderNumber: 'asc' } } },
-        });
+        const topic = await this.getTopicWithVocabularies(topicId);
         if (!topic) {
             throw new common_1.NotFoundException('Không tìm thấy chủ đề');
         }
@@ -87,6 +84,16 @@ let QuizService = class QuizService {
             duration: attempt.duration,
             graded,
         };
+    }
+    getTopicWithVocabularies(topicId) {
+        return this.prisma.topic.findUnique({
+            where: { id: topicId },
+            include: { vocabularies: { orderBy: { orderNumber: 'asc' } } },
+        });
+    }
+    async getTopicVocabularies(topicId) {
+        const topic = await this.getTopicWithVocabularies(topicId);
+        return topic?.vocabularies ?? [];
     }
     buildQuestion(vocabulary, type, pool) {
         const exampleSentence = (0, example_utils_1.cleanExampleSentence)(vocabulary.exampleSentence);

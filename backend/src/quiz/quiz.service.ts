@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Vocabulary } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import {
@@ -24,16 +23,14 @@ const questionTypes = [
 ] as const;
 
 type QuestionType = (typeof questionTypes)[number];
+type QuizVocabulary = Awaited<ReturnType<QuizService['getTopicVocabularies']>>[number];
 
 @Injectable()
 export class QuizService {
   constructor(private readonly prisma: PrismaService) {}
 
   async generate(topicId: string) {
-    const topic = await this.prisma.topic.findUnique({
-      where: { id: topicId },
-      include: { vocabularies: { orderBy: { orderNumber: 'asc' } } },
-    });
+    const topic = await this.getTopicWithVocabularies(topicId);
 
     if (!topic) {
       throw new NotFoundException('Không tìm thấy chủ đề');
@@ -94,7 +91,19 @@ export class QuizService {
     };
   }
 
-  private buildQuestion(vocabulary: Vocabulary, type: QuestionType, pool: Vocabulary[]) {
+  private getTopicWithVocabularies(topicId: string) {
+    return this.prisma.topic.findUnique({
+      where: { id: topicId },
+      include: { vocabularies: { orderBy: { orderNumber: 'asc' } } },
+    });
+  }
+
+  private async getTopicVocabularies(topicId: string) {
+    const topic = await this.getTopicWithVocabularies(topicId);
+    return topic?.vocabularies ?? [];
+  }
+
+  private buildQuestion(vocabulary: QuizVocabulary, type: QuestionType, pool: QuizVocabulary[]) {
     const exampleSentence = cleanExampleSentence(vocabulary.exampleSentence);
     const exampleMeaning = cleanExampleMeaning(vocabulary.exampleMeaning);
     const hasRealExample =

@@ -79,6 +79,8 @@ export declare class QuizService {
             correctAnswer: string | boolean;
         }[];
     }>;
+    private getTopicWithVocabularies;
+    private getTopicVocabularies;
     private buildQuestion;
     private isCorrect;
     private shuffle;
