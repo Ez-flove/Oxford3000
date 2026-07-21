@@ -1,0 +1,161 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 1. Người dùng
+model User {
+  id           String   @id @default(uuid()) @map("_id")
+  email        String
+  passwordHash String
+  fullName     String
+  avatarUrl    String?
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Quan hệ
+  progresses   UserProgress[]
+  favorites    UserFavorite[]
+  quizAttempts QuizAttempt[]
+  schedules    ReviewSchedule[]
+
+  @@index([email])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// 2. Chủ đề học tập
+model Topic {
+  id          String   @id @default(uuid()) @map("_id")
+  title       String // VD: Family, Technology, Travel...
+  slug        String   @unique
+  description String?
+  imageUrl    String?
+  orderIndex  Int // Dùng để sắp xếp các chủ đề theo lộ trình
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Quan hệ
+  vocabularies Vocabulary[]
+  quizAttempts QuizAttempt[]
+}
+
+// 3. Từ vựng (Oxford 3000)
+model Vocabulary {
+  id              String   @id @default(uuid()) @map("_id")
+  word            String // Từ tiếng Anh (VD: abandon)
+  partOfSpeech    String // Loại từ (VD: v, n, adj, adv)
+  ipa             String // Phiên âm (VD: /əˈbændən/)
+  meaningVi       String // Nghĩa tiếng Việt
+  imageUrl        String? // Ảnh minh họa trực quan
+  audioUrl        String? // File phát âm giọng Anh-Anh hoặc Anh-Mỹ
+  exampleSentence String // Câu ví dụ (Tiếng Anh)
+  exampleMeaning  String // Dịch nghĩa câu ví dụ (Tiếng Việt)
+  exampleTense    String? // Thì sử dụng trong câu ví dụ (VD: Present Simple, Past Simple...)
+  orderNumber     Int // Thứ tự hiển thị (từ 1 đến 3000+)
+  topicId         String
+  createdAt       DateTime @default(now())
+
+  // Quan hệ
+  topic           Topic                  @relation(fields: [topicId], references: [id])
+  progresses      UserProgress[]
+  favorites       UserFavorite[]
+  reviewSchedules ReviewSchedule[]
+  quizWrongWords  QuizAttemptWrongWord[]
+
+  @@index([word])
+  @@index([topicId])
+}
+
+// 4. Tiến độ học của người dùng
+model UserProgress {
+  id           String    @id @default(uuid()) @map("_id")
+  userId       String
+  vocabularyId String
+  isLearned    Boolean   @default(false)
+  learnedAt    DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  // Quan hệ
+  user       User       @relation(fields: [userId], references: [id])
+  vocabulary Vocabulary @relation(fields: [vocabularyId], references: [id])
+
+  @@unique([userId, vocabularyId])
+  @@index([userId])
+}
+
+// 5. Từ vựng yêu thích/Từ khó cần lưu ý
+model UserFavorite {
+  id           String   @id @default(uuid()) @map("_id")
+  userId       String
+  vocabularyId String
+  createdAt    DateTime @default(now())
+
+  // Quan hệ
+  user       User       @relation(fields: [userId], references: [id])
+  vocabulary Vocabulary @relation(fields: [vocabularyId], references: [id])
+
+  @@unique([userId, vocabularyId])
+  @@index([userId])
+}
+
+// 6. Lịch sử bài kiểm tra
+model QuizAttempt {
+  id             String   @id @default(uuid()) @map("_id")
+  userId         String
+  topicId        String
+  score          Float // Điểm số (%)
+  totalQuestions Int
+  correctAnswers Int
+  wrongAnswers   Int
+  duration       Int // Thời gian làm bài (tính bằng giây)
+  completedAt    DateTime @default(now())
+
+  // Quan hệ
+  user       User                   @relation(fields: [userId], references: [id])
+  topic      Topic                  @relation(fields: [topicId], references: [id])
+  wrongWords QuizAttemptWrongWord[]
+
+  @@index([userId, topicId])
+}
+
+// 7. Lưu vết các từ trả lời sai trong bài test để ôn tập
+model QuizAttemptWrongWord {
+  id           String @id @default(uuid()) @map("_id")
+  attemptId    String
+  vocabularyId String
+
+  // Quan hệ
+  attempt    QuizAttempt @relation(fields: [attemptId], references: [id])
+  vocabulary Vocabulary  @relation(fields: [vocabularyId], references: [id])
+
+  @@unique([attemptId, vocabularyId])
+}
+
+// 8. Lịch ôn tập Spaced Repetition (Lặp lại ngắt quãng - SM-2)
+model ReviewSchedule {
+  id           String    @id @default(uuid()) @map("_id")
+  userId       String
+  vocabularyId String
+  interval     Int       @default(1)
+  easeFactor   Float     @default(2.5)
+  repetitions  Int       @default(0)
+  dueDate      DateTime  @default(now())
+  lastReviewed DateTime?
+
+  // Quan hệ
+  user       User       @relation(fields: [userId], references: [id])
+  vocabulary Vocabulary @relation(fields: [vocabularyId], references: [id])
+
+  @@unique([userId, vocabularyId])
+  @@index([userId, dueDate])
+}
