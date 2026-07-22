@@ -18,7 +18,20 @@ async function bootstrap() {
         .map((origin) => origin?.trim())
         .filter(Boolean);
     app.enableCors({
-        origin: allowedOrigins,
+        origin(origin, callback) {
+            if (!origin) {
+                callback(null, true);
+                return;
+            }
+            const isAllowedOrigin = allowedOrigins.includes(origin) ||
+                /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin);
+            if (isAllowedOrigin) {
+                callback(null, true);
+                return;
+            }
+            logger.warn(`CORS blocked origin: ${origin}`);
+            callback(new Error(`CORS blocked origin: ${origin}`));
+        },
         credentials: true,
     });
     app.useGlobalPipes(new common_1.ValidationPipe({
